@@ -109,16 +109,16 @@ class ImageGlitcher:
 
     @overload
     def glitch_image(self, src_img: Union[str, Image.Image], glitch_amount: Union[int, float], seed: Optional[Union[int, float]] = None, glitch_change: Union[int, float] = 0.0,
-                     color_offset: bool = False, scan_lines: bool = False, gif: Literal[False] = False, cycle: bool = False, frames: int = 23, step: int = 1) -> Image.Image:
+                     color_offset: bool = False, color_intensity: float = 0.0, scan_lines: bool = False, scan_intensity: float = 1.0, snow_noise: bool = False, snow_intensity: float = 0.0, gif: Literal[False] = False, cycle: bool = False, frames: int = 23, step: int = 1) -> Image.Image:
         ...
 
     @overload
     def glitch_image(self, src_img: Union[str, Image.Image], glitch_amount: Union[int, float], seed: Optional[Union[int, float]] = None, glitch_change: Union[int, float] = 0.0,
-                     color_offset: bool = False, scan_lines: bool = False, gif: Literal[True] = False, cycle: bool = False, frames: int = 23, step: int = 1) -> List[Image.Image]: # type: ignore
+                     color_offset: bool = False, color_intensity: float = 0.0, scan_lines: bool = False, scan_intensity: float = 1.0, snow_noise: bool = False, snow_intensity: float = 0.0, gif: Literal[True] = False, cycle: bool = False, frames: int = 23, step: int = 1) -> List[Image.Image]: # type: ignore
         ...
 
     def glitch_image(self, src_img: Union[str, Image.Image], glitch_amount: Union[int, float], seed: Optional[Union[int, float]] = None, glitch_change: Union[int, float] = 0.0,
-                     color_offset: bool = False, scan_lines: bool = False, gif: bool = False, cycle: bool = False, frames: int = 23, step: int = 1) -> Union[Image.Image, List[Image.Image]]:
+                     color_offset: bool = False, color_intensity: float = 0.0, scan_lines: bool = False, scan_intensity: float = 1.0, snow_noise: bool = False, snow_intensity: float = 0.0, gif: bool = False, cycle: bool = False, frames: int = 23, step: int = 1) -> Union[Image.Image, List[Image.Image]]:
         """
          Sets up values needed for glitching the image
 
@@ -139,7 +139,15 @@ class ImageGlitcher:
 
          color_offset: Specify True if color_offset effect should be applied
 
+         color_intensity: Intensity of color_offset, [0.0, 1.0]. 0.0 = use glitch_amount, 1.0 = max intensity
+
          scan_lines: Specify True if scan_lines effect should be applied
+
+         scan_intensity: Intensity of scan_lines, [0.1, 2.0]. 1.0 = normal density, <1.0 = sparser, >1.0 = denser
+
+         snow_noise: Specify True if snow_noise effect should be applied
+
+         snow_intensity: Intensity of snow_noise, [0.0, 1.0]. 0.0 = use glitch_amount, 1.0 = max intensity (70% coverage)
 
          gif: True if output should be ready to be saved as GIF
 
@@ -177,6 +185,20 @@ class ImageGlitcher:
             raise ValueError('color_offset param must be a boolean')
         if not isinstance(scan_lines, bool):
             raise ValueError('scan_lines param must be a boolean')
+        if not isinstance(snow_noise, bool):
+            raise ValueError('snow_noise param must be a boolean')
+        if not isinstance(color_intensity, (int, float)):
+            raise ValueError('color_intensity param must be a number')
+        if not (0.0 <= color_intensity <= 1.0):
+            raise ValueError('color_intensity param must be between 0.0 and 1.0')
+        if not isinstance(scan_intensity, (int, float)):
+            raise ValueError('scan_intensity param must be a number')
+        if not (0.1 <= scan_intensity <= 2.0):
+            raise ValueError('scan_intensity param must be between 0.1 and 2.0')
+        if not isinstance(snow_intensity, (int, float)):
+            raise ValueError('snow_intensity param must be a number')
+        if not (0.0 <= snow_intensity <= 1.0):
+            raise ValueError('snow_intensity param must be between 0.0 and 1.0')
         if not isinstance(gif, bool):
             raise ValueError('gif param must be a boolean')
 
@@ -209,7 +231,7 @@ class ImageGlitcher:
         # Glitching begins here
         if not gif:
             # Return glitched image
-            return self.__get_glitched_img(glitch_amount, color_offset, scan_lines)
+            return self.__get_glitched_img(glitch_amount, color_offset, color_intensity, scan_lines, scan_intensity, snow_noise, snow_intensity)
 
         # Return glitched GIF
         # Set up directory for storing glitched images
@@ -235,7 +257,7 @@ class ImageGlitcher:
                 glitched_imgs.append(img.copy())
                 continue
             glitched_img = self.__get_glitched_img(
-                glitch_amount, color_offset, scan_lines)
+                glitch_amount, color_offset, color_intensity, scan_lines, scan_intensity, snow_noise, snow_intensity)
             file_path = os.path.join(self.gif_dirpath, 'glitched_frame.png')
             glitched_img.save(file_path, compress_level=3)
             glitched_imgs.append(Image.open(file_path).copy())
@@ -250,7 +272,7 @@ class ImageGlitcher:
         return glitched_imgs
 
     def glitch_gif(self, src_gif: Union[str, Image.Image], glitch_amount: Union[int, float], seed: Union[int, float] = None, glitch_change: Union[int, float] = 0.0,
-                   color_offset: bool = False, scan_lines: bool = False, gif: bool = False, cycle: bool = False, step=1) -> Tuple[List[Image.Image], float, int]:
+                   color_offset: bool = False, color_intensity: float = 0.0, scan_lines: bool = False, scan_intensity: float = 1.0, snow_noise: bool = False, snow_intensity: float = 0.0, gif: bool = False, cycle: bool = False, step=1) -> Tuple[List[Image.Image], float, int]:
         """
          Glitch each frame of input GIF
          Returns the following:
@@ -269,7 +291,11 @@ class ImageGlitcher:
          cycle: Whether or not to cycle glitch_amount back to glitch_min or glitch_max
                 if it over/underflows
          color_offset: Specify True if color_offset effect should be applied
+         color_intensity: Intensity of color_offset, [0.0, 1.0]. 0.0 = use glitch_amount, 1.0 = max intensity
          scan_lines: Specify True if scan_lines effect should be applied
+         scan_intensity: Intensity of scan_lines, [0.1, 2.0]. 1.0 = normal density, <1.0 = sparser, >1.0 = denser
+         snow_noise: Specify True if snow_noise effect should be applied
+         snow_intensity: Intensity of snow_noise, [0.0, 1.0]. 0.0 = use glitch_amount, 1.0 = max intensity (70% coverage)
          step: Glitch every step'th frame, defaults to 1 (i.e all frames)
          seed: Set a random seed for generating similar images across runs,
                defaults to None (random seed)
@@ -298,6 +324,20 @@ class ImageGlitcher:
             raise ValueError('color_offset param must be a boolean')
         if not isinstance(scan_lines, bool):
             raise ValueError('scan_lines param must be a boolean')
+        if not isinstance(snow_noise, bool):
+            raise ValueError('snow_noise param must be a boolean')
+        if not isinstance(color_intensity, (int, float)):
+            raise ValueError('color_intensity param must be a number')
+        if not (0.0 <= color_intensity <= 1.0):
+            raise ValueError('color_intensity param must be between 0.0 and 1.0')
+        if not isinstance(scan_intensity, (int, float)):
+            raise ValueError('scan_intensity param must be a number')
+        if not (0.1 <= scan_intensity <= 2.0):
+            raise ValueError('scan_intensity param must be between 0.1 and 2.0')
+        if not isinstance(snow_intensity, (int, float)):
+            raise ValueError('snow_intensity param must be a number')
+        if not (0.0 <= snow_intensity <= 1.0):
+            raise ValueError('snow_intensity param must be between 0.0 and 1.0')
         if not self.__isgif(src_gif):
             raise Exception(
                 'Input image must be a path to a GIF or be a GIF Image object')
@@ -355,7 +395,9 @@ class ImageGlitcher:
                 i += 1
                 continue
             glitched_img: Image.Image = self.glitch_image(src_frame_path, glitch_amount,
-                                                          color_offset=color_offset, scan_lines=scan_lines)
+                                                          color_offset=color_offset, color_intensity=color_intensity,
+                                                          scan_lines=scan_lines, scan_intensity=scan_intensity,
+                                                          snow_noise=snow_noise, snow_intensity=snow_intensity)
             file_path = os.path.join(self.gif_dirpath, 'glitched_frame.png')
             glitched_img.save(file_path, compress_level=3)
             glitched_imgs.append(Image.open(file_path).copy())
@@ -386,13 +428,18 @@ class ImageGlitcher:
                 self.glitch_max)) if cycle else self.glitch_max
         return glitch_amount
 
-    def __get_glitched_img(self, glitch_amount: Union[int, float], color_offset: int, scan_lines: bool) -> Image.Image:
+    def __get_glitched_img(self, glitch_amount: Union[int, float], color_offset: int, color_intensity: float, scan_lines: bool, scan_intensity: float, snow_noise: bool, snow_intensity: float) -> Image.Image:
         """
          Glitches the image located at given path
          Intensity of glitch depends on glitch_amount
         """
         max_offset = int((glitch_amount ** 2 / 100) * self.img_width)
         doubled_glitch_amount = int(glitch_amount * 2)
+        # Calculate effective intensities based on parameters
+        # If intensity is 0.0, use glitch_amount; otherwise use the provided intensity
+        effective_color_intensity = color_intensity if color_intensity > 0 else min(1.0, glitch_amount / self.glitch_max)
+        effective_snow_intensity = snow_intensity if snow_intensity > 0 else min(1.0, glitch_amount / 10.0)
+        effective_scan_intensity = scan_intensity
         for shift_number in range(0, doubled_glitch_amount):
 
             if self.seed:
@@ -427,24 +474,47 @@ class ImageGlitcher:
             # Get the next random channel we'll offset, needs to be before the random.randints
             # arguments because they will use up the original seed (if a custom seed is used)
             random_channel = self.__get_random_channel()
+            # Calculate effective offset based on intensity
+            effective_offset = int(doubled_glitch_amount * effective_color_intensity * 2)
             # Add color channel offset if checked true
-            self.__color_offset(random.randint(-doubled_glitch_amount, doubled_glitch_amount),
-                                random.randint(-doubled_glitch_amount,
-                                               doubled_glitch_amount),
+            self.__color_offset(random.randint(-effective_offset, effective_offset),
+                                random.randint(-effective_offset, effective_offset),
                                 random_channel)
 
         if scan_lines:
             # Add scan lines if checked true
-            self.__add_scan_lines()
+            self.__add_scan_lines(effective_scan_intensity)
+
+        if snow_noise:
+            # Add snow noise if checked true
+            self.__add_snow_noise(effective_snow_intensity)
 
         # Creating glitched image from output array
         return Image.fromarray(self.outputarr, self.img_mode)
 
-    def __add_scan_lines(self):
-        # Make every other row have only black pixels
+    def __add_scan_lines(self, intensity: float):
+        # Add scan lines to the image
+        # intensity controls the density of scan lines
+        # 1.0 = every other row (normal), 0.5 = every 2nd row, 2.0 = every row
         # Only the R, G, and B channels are assigned 0 values
         # Alpha is left untouched (if present)
-        self.outputarr[::2, :, :3] = [0, 0, 0]
+        step = max(1, int(2.0 / intensity))
+        self.outputarr[::step, :, :3] = [0, 0, 0]
+
+    def __add_snow_noise(self, intensity: float):
+        """
+        Add random snow noise to the image
+        intensity: 0.0 to 1.0, controls the amount of noise
+        Higher values mean more noise pixels
+        """
+        # Create a random mask for noise pixels
+        noise_mask = np.random.random((self.img_height, self.img_width)) < intensity
+
+        # Generate random noise values (0-255) for RGB channels
+        noise_values = np.random.randint(0, 256, (self.img_height, self.img_width, 3), dtype=np.uint8)
+
+        # Apply noise only where mask is True
+        self.outputarr[noise_mask, :3] = noise_values[noise_mask, :3]
 
     def __glitch_left(self, offset: int):
         """

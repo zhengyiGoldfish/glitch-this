@@ -54,17 +54,19 @@ def is_latest(version: str) -> bool:
 def get_help(glitch_min: float, glitch_max: float) -> Dict:
     help_text = dict()
     help_text['path'] = 'Relative or Absolute string path to source image'
-    help_text['level'] = f'Number between {glitch_min} and {
-        glitch_max}, inclusive, representing amount of glitchiness'
+    help_text['level'] = f'Number between {glitch_min} and {glitch_max}, inclusive, representing amount of glitchiness'
     help_text['color'] = 'Include if you want to add color offset'
+    help_text['color_intensity'] = 'Intensity of color offset, [0.0, 1.0]. 0.0 = use glitch_level, 1.0 = max intensity. Default - 0.0'
     help_text['scan'] = 'Include if you want to add scan lines effect\nDefaults to False'
+    help_text['scan_intensity'] = 'Intensity of scan lines, [0.1, 2.0]. 1.0 = normal, <1.0 = sparser, >1.0 = denser. Default - 1.0'
+    help_text['snow'] = 'Include if you want to add snow noise effect\nDefaults to False'
+    help_text['snow_intensity'] = 'Intensity of snow noise, [0.0, 1.0]. 0.0 = use glitch_level, 1.0 = max (70% coverage). Default - 0.0'
     help_text['seed'] = 'Set a random seed for generating similar images across runs'
     help_text['gif'] = 'Include if you want output to be a GIF'
     help_text['frames'] = 'Number of frames to include in output GIF, default - 23'
     help_text['step'] = 'Glitch every step\'th frame of output GIF, default - 1 (every frame)'
     help_text['increment'] = 'Increment glitch_amount by given value after glitching every frame of output GIF'
-    help_text['cycle'] = f'Include if glitch_amount should be cycled back to {
-        glitch_min} or {glitch_max} if it over/underflows'
+    help_text['cycle'] = f'Include if glitch_amount should be cycled back to {glitch_min} or {glitch_max} if it over/underflows'
     help_text['duration'] = 'How long to display each frame (in centiseconds), default - 200'
     help_text['relative_duration'] = 'Multiply given value to input GIF\'s original duration and use that as duration'
     help_text['loop'] = 'How many times the glitched GIF should loop, default - 0 (infinite loop)'
@@ -94,8 +96,16 @@ def main():
                            help=help_text['level'])
     argparser.add_argument('-c', '--color', dest='color', action='store_true',
                            help=help_text['color'])
+    argparser.add_argument('-ci', '--color-intensity', dest='color_intensity', metavar='Color_Intensity', type=float, default=0.0,
+                           help=help_text['color_intensity'])
     argparser.add_argument('-s', '--scan', dest='scan_lines', action='store_true',
                            help=help_text['scan'])
+    argparser.add_argument('-si', '--scan-intensity', dest='scan_intensity', metavar='Scan_Intensity', type=float, default=1.0,
+                           help=help_text['scan_intensity'])
+    argparser.add_argument('-sn', '--snow-noise', dest='snow_noise', action='store_true',
+                           help=help_text['snow'])
+    argparser.add_argument('-sni', '--snow-intensity', dest='snow_intensity', metavar='Snow_Intensity', type=float, default=0.0,
+                           help=help_text['snow_intensity'])
     argparser.add_argument('-g', '--gif', dest='gif', action='store_true',
                            help=help_text['gif'])
     argparser.add_argument('-ig', '--inputgif', dest='input_gif', action='store_true',
@@ -131,8 +141,7 @@ def main():
         raise ValueError('Loop must be greater than or equal to 0')
     if not args.frames > 0:
         raise ValueError('Frames must be greater than 0')
-    if not os.path.isfile(args.src_img_path):
-        raise FileNotFoundError('No image found at given path')
+    if not os.path.isfile(args.src_img_path):raise FileNotFoundError('No image found at given path')
     if args.output_frames and not args.gif:
         raise ValueError("Cannot output frames without GIF output enabled")
 
@@ -140,6 +149,9 @@ def main():
     out_path, out_file = os.path.split(Path(args.src_img_path))
     out_filename, out_fileex = out_file.rsplit('.', 1)
     out_filename = 'glitched_' + out_filename
+    # Add timestamp to filename to avoid overwriting
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    out_filename = f"{out_filename}_{timestamp}"
     # Output file extension should be '.gif' if output file is going to be a gif
     if args.gif:
         out_fileex = "gif"
@@ -188,8 +200,12 @@ def main():
         glitch_img = glitcher.glitch_image(args.src_img_path, args.glitch_level,
                                            glitch_change=args.increment,
                                            cycle=args.cycle,
-                                           scan_lines=args.scan_lines,
                                            color_offset=args.color,
+                                           color_intensity=args.color_intensity,
+                                           scan_lines=args.scan_lines,
+                                           scan_intensity=args.scan_intensity,
+                                           snow_noise=args.snow_noise,
+                                           snow_intensity=args.snow_intensity,
                                            seed=args.seed,
                                            gif=args.gif,
                                            frames=args.frames,
@@ -199,8 +215,12 @@ def main():
         glitch_img, src_duration, args.frames = glitcher.glitch_gif(args.src_img_path, args.glitch_level,
                                                                     glitch_change=args.increment,
                                                                     cycle=args.cycle,
-                                                                    scan_lines=args.scan_lines,
                                                                     color_offset=args.color,
+                                                                    color_intensity=args.color_intensity,
+                                                                    scan_lines=args.scan_lines,
+                                                                    scan_intensity=args.scan_intensity,
+                                                                    snow_noise=args.snow_noise,
+                                                                    snow_intensity=args.snow_intensity,
                                                                     seed=args.seed,
                                                                     step=args.step)
         # Set args.gif to true if it isn't already in this case
@@ -228,8 +248,7 @@ def main():
         )
         t3 = time()
         print(
-            f'Glitched GIF saved in "{full_path}"\nFrames = {
-                args.frames}, Duration = {args.duration}, Loop = {args.loop}'
+            f'Glitched GIF saved in "{full_path}"\nFrames = {args.frames}, Duration = {args.duration}, Loop = {args.loop}'
         )
     else:
         for i, frame in enumerate(glitch_img):
